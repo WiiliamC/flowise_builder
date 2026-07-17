@@ -1,0 +1,20 @@
+apiVersion: flowise-agentflow-builder/v1alpha1
+kind: Agentflow
+metadata:
+  name: simple-agent
+  description: A minimal Agentflow with one agent and a final reply.
+spec:
+  nodes:
+    - key: start
+      component: startAgentflow
+    - key: agent
+      component: agentAgentflow
+      inputs:
+        systemMessage: Answer accurately and say when information is unavailable.
+    - key: reply
+      component: directReplyAgentflow
+      inputs:
+        message: "{{ agent.output }}"
+  edges:
+    - { from: start, to: agent }
+    - { from: agent, to: reply }

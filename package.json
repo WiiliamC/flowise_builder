@@ -1,0 +1,31 @@
+{
+  "name": "flowise-agentflow-builder",
+  "version": "0.1.0",
+  "description": "Deterministic Flowise Agentflow V2 builder CLI",
+  "type": "module",
+  "bin": { "flowise-agentflow": "dist/cli.js" },
+  "files": ["dist", "schemas", "skills", "examples", "README.md"],
+  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@10.26.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "FLOWISE_INTEGRATION=1 vitest run test/integration",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.5",
+    "commander": "^14.0.0",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.53",
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
+    "undici": "^7.16.0",
+    "vitest": "^4.0.14"
+  }
+}

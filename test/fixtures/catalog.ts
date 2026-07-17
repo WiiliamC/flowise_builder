@@ -1,0 +1,10 @@
+import type { NodeDataSchema } from '../../src/domain/node-catalog.js'
+
+export const fixtureCatalog: NodeDataSchema[] = [
+  { name: 'startAgentflow', label: 'Start', type: 'Start', category: 'Agent Flows', inputs: [], outputs: [{ name: 'startAgentflow', label: 'Start', type: 'Start' }] },
+  { name: 'agentAgentflow', label: 'Agent', type: 'Agent', category: 'Agent Flows', inputs: [{ id: '', name: 'systemMessage', label: 'System Message', type: 'string', optional: true }] },
+  { name: 'directReplyAgentflow', label: 'Direct Reply', type: 'DirectReply', category: 'Agent Flows', inputs: [{ id: '', name: 'message', label: 'Message', type: 'string' }] },
+  { name: 'conditionAgentflow', label: 'Condition', type: 'Condition', category: 'Agent Flows', inputs: [{ id: '', name: 'conditions', label: 'Conditions', type: 'array', default: [] }], outputs: [{ name: '0', label: 'Condition', type: 'Condition' }, { name: '1', label: 'Else', type: 'Condition' }] },
+  { name: 'toolAgentflow', label: 'Tool', type: 'Tool', category: 'Agent Flows', inputs: [{ id: '', name: 'toolAgentflowSelectedTool', label: 'Tool', type: 'asyncOptions', optional: true }] },
+  { name: 'humanInputAgentflow', label: 'Human Input', type: 'HumanInput', category: 'Agent Flows', inputs: [{ id: '', name: 'description', label: 'Description', type: 'string' }], outputs: [{ name: 'proceed', label: 'Proceed', type: 'HumanInput' }, { name: 'reject', label: 'Reject', type: 'HumanInput' }] }
+]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Flowise Agentflow"
+  short_description: "Safely build and update Agentflow canvases"
+  default_prompt: "Use $build-flowise-agentflow to turn this workflow requirement into a validated Flowise Agentflow spec and preview its changes."

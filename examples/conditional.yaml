@@ -1,0 +1,17 @@
+apiVersion: flowise-agentflow-builder/v1alpha1
+kind: Agentflow
+metadata: { name: conditional }
+spec:
+  nodes:
+    - { key: start, component: startAgentflow }
+    - key: decision
+      component: conditionAgentflow
+      inputs:
+        conditions:
+          - { variable: "{{ start.input }}", operation: contains, value: urgent }
+    - { key: urgent, component: directReplyAgentflow, inputs: { message: Escalating this request. } }
+    - { key: normal, component: directReplyAgentflow, inputs: { message: Processing normally. } }
+  edges:
+    - { from: start, to: decision }
+    - { from: decision, output: "0", to: urgent }
+    - { from: decision, output: "1", to: normal }

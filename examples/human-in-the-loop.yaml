@@ -1,0 +1,13 @@
+apiVersion: flowise-agentflow-builder/v1alpha1
+kind: Agentflow
+metadata: { name: human-in-the-loop }
+spec:
+  nodes:
+    - { key: start, component: startAgentflow }
+    - key: approval
+      component: humanInputAgentflow
+      inputs: { description: Review and approve the proposed response. }
+    - { key: reply, component: directReplyAgentflow, inputs: { message: Approved. } }
+  edges:
+    - { from: start, to: approval }
+    - { from: approval, to: reply }

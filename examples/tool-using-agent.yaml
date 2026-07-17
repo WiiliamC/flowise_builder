@@ -1,0 +1,14 @@
+apiVersion: flowise-agentflow-builder/v1alpha1
+kind: Agentflow
+metadata: { name: tool-using-agent }
+spec:
+  nodes:
+    - { key: start, component: startAgentflow }
+    - key: tool
+      component: toolAgentflow
+      inputs:
+        toolAgentflowSelectedTool: TODO_SELECT_FROM_INSPECT_NODES
+    - { key: reply, component: directReplyAgentflow, inputs: { message: "{{ tool.output }}" } }
+  edges:
+    - { from: start, to: tool }
+    - { from: tool, to: reply }
