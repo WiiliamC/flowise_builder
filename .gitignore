@@ -4,3 +4,5 @@ dist/
 build/
 .flowise-agentflow.credentials.yaml
 .env
+.agents/skills/build-flowise-agentflow
+.review_untill_satisfied/

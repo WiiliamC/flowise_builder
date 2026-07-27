@@ -100,9 +100,11 @@ program.command('export').requiredOption('--target-id <id>').requiredOption('--o
 })
 
 try { await program.parseAsync(process.argv) } catch (error) {
-  if (error instanceof CommanderError && error.code === 'commander.helpDisplayed') process.exit(0)
-  const opts = program.opts() as Opts; const code = error instanceof FlowiseError ? error.code : error instanceof SpecError ? error.code : error && typeof error === 'object' && 'code' in error ? String(error.code) : 'INTERNAL_ERROR'; const message = error instanceof Error ? error.message : String(error)
-  if (opts.verbose && error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`)
-  emitReport(makeReport(program.args[0] ?? 'unknown', { ok: false, error: { code, message }, diagnostics: error instanceof SpecError ? error.diagnostics : [] }), String(opts.format ?? 'human'))
-  process.exitCode = error instanceof FlowiseError ? 3 : error instanceof SpecError ? 2 : 1
+  if (error instanceof CommanderError && (error.code === 'commander.helpDisplayed' || error.code === 'commander.version')) process.exitCode = 0
+  else {
+    const opts = program.opts() as Opts; const code = error instanceof FlowiseError ? error.code : error instanceof SpecError ? error.code : error && typeof error === 'object' && 'code' in error ? String(error.code) : 'INTERNAL_ERROR'; const message = error instanceof Error ? error.message : String(error)
+    if (opts.verbose && error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`)
+    emitReport(makeReport(program.args[0] ?? 'unknown', { ok: false, error: { code, message }, diagnostics: error instanceof SpecError ? error.diagnostics : [] }), String(opts.format ?? 'human'))
+    process.exitCode = error instanceof FlowiseError ? 3 : error instanceof SpecError ? 2 : 1
+  }
 }

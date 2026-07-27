@@ -6,6 +6,24 @@ A standalone TypeScript CLI that deterministically compiles strict YAML/JSON int
 
 Requires Node.js 20+ and pnpm.
 
+Install the CLI from a checkout with:
+
+```bash
+./scripts/install-cli.sh
+```
+
+The script requires pnpm's global bin directory to be configured (`pnpm setup`), installs lockfile-pinned dependencies, builds the CLI, links it globally with pnpm, and verifies `flowise-agentflow --version`. It does not install system dependencies or configure a Flowise instance.
+
+To make the bundled Codex Skill available from this checkout, run:
+
+```bash
+./scripts/install-skill.sh
+```
+
+This creates the repository-local `.agents/skills/build-flowise-agentflow` symlink. To copy the skill to your user-level Codex skills directory instead, run `./scripts/install-skill.sh --global`. Existing targets require `--force` to replace them.
+
+Manual CLI installation remains:
+
 ```bash
 pnpm install
 pnpm build
