@@ -13,19 +13,22 @@ import { FlowiseClient, FlowiseError } from './flowise/flowise-client.js'
 import type { FlowData } from './domain/flow-data.js'
 import type { NodeDataSchema } from './domain/node-catalog.js'
 import { loadConfig, loadCredentialAliases } from './config.js'
-import { emitReport, makeReport } from './output/report-writer.js'
+import { emitReport, escapeTerminalText, makeReport } from './output/report-writer.js'
 import type { Diagnostic } from './domain/diagnostics.js'
 import { SpecError } from './builder/spec-parser.js'
 import { redact } from './output/secret-redactor.js'
 import { writeSensitiveJson } from './output/artifact-writer.js'
+import { inspectAgentflow, listAgentflows } from './application/inspect-agentflows.js'
+import { VERSION } from './version.js'
 
 type Opts = Record<string, unknown>
-const program = new Command().name('flowise-agentflow').version('0.1.0').showHelpAfterError()
+const program = new Command().name('flowise-agentflow').version(VERSION).showHelpAfterError()
 program.exitOverride()
 const collect = (value: string, previous: string[]) => [...previous, value]
 program.option('--config <path>').option('--credentials <path>', 'private credential alias mapping').option('--base-url <url>').option('--token-env <name>', 'token environment variable', 'FLOWISE_API_TOKEN').option('--format <format>', 'human|json', 'human').option('--timeout <ms>').option('--header <header>', 'custom Name: value header', collect, []).option('--verbose').option('--allow-insecure-http')
 
 const globalOpts = (command: Command): Opts => ({ ...command.optsWithGlobals() })
+const terminalText = (value: unknown) => escapeTerminalText(String(value))
 async function clientFor(opts: Opts) { return new FlowiseClient(await loadConfig(opts)) }
 async function catalogFor(opts: Opts): Promise<{ nodes: NodeDataSchema[]; hash: string; client?: FlowiseClient }> {
   if (typeof opts.catalog === 'string') return loadCatalog(opts.catalog)
@@ -41,12 +44,30 @@ program.command('doctor').description('Check connectivity, authentication, and r
   emitReport(makeReport('doctor', { ok: true, data: { reachable: true, nodeCount: nodes.length, chatflowRead: Array.isArray(chatflows) }, target: { baseUrl: client.baseUrl }, diagnostics: [{ code: 'FLOWISE_VERSION_UNKNOWN', severity: 'info', message: 'Flowise version was not exposed by the API' }] }), String(opts.format))
 })
 
+program.command('list').description('List Agentflow V2 workflows').action(async (_opts, command) => {
+  const opts = globalOpts(command); const client = await clientFor(opts); const result = listAgentflows(await client.listChatflows())
+  const report = makeReport('list', { ok: true, nodes: result.nodes, edges: result.edges, diagnostics: result.diagnostics, data: { count: result.agentflows.length, agentflows: result.agentflows }, target: { baseUrl: client.baseUrl } })
+  const details = [`Agentflows: ${result.agentflows.length}`, ...result.agentflows.map((item) => `${terminalText(item.id)}\t${terminalText(item.name)}\t${item.nodes ?? '?'} nodes\t${item.edges ?? '?'} edges`)]
+  emitReport(report, String(opts.format), details)
+})
+
+program.command('inspect').description('Inspect a sanitized Agentflow V2 graph').requiredOption('--target-id <id>').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts); const inspection = inspectAgentflow(await client.getChatflow(String(opts.targetId)))
+  const report = makeReport('inspect', { ok: true, nodes: inspection.graph.nodes.length, edges: inspection.graph.edges.length, data: inspection, target: { baseUrl: client.baseUrl, chatflowId: inspection.agentflow.id, type: inspection.agentflow.type } })
+  const details = [
+    `Agentflow: ${terminalText(inspection.agentflow.id)}\t${terminalText(inspection.agentflow.name)}`,
+    ...inspection.graph.nodes.map((node) => `${terminalText(node.ref)}\t${terminalText(node.label)}\t${terminalText(node.component)}`),
+    ...inspection.graph.edges.map((edge) => `${terminalText(edge.from)} -> ${terminalText(edge.to)}${edge.outputIndex !== undefined ? ` [output ${edge.outputIndex}]` : ''}`)
+  ]
+  emitReport(report, String(opts.format), details)
+})
+
 program.command('inspect-nodes').option('--component <name>').option('--category <name>').option('--snapshot <path>').action(async (local, command) => {
   const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts); let nodes = await client.listNodes()
   if (opts.component) nodes = nodes.filter((node) => node.name === opts.component)
   if (opts.category) nodes = nodes.filter((node) => node.category?.toLowerCase().includes(String(opts.category).toLowerCase()))
   let snapshot: string | undefined
-  if (typeof opts.snapshot === 'string') { await snapshotCatalog(client, opts.snapshot); snapshot = resolve(opts.snapshot) }
+  if (typeof opts.snapshot === 'string') { await snapshotCatalog(client, opts.snapshot, nodes); snapshot = resolve(opts.snapshot) }
   emitReport(makeReport('inspect-nodes', { ok: true, data: { nodes }, artifacts: snapshot ? { catalog: snapshot } : undefined }), String(opts.format))
 })
 
@@ -54,7 +75,7 @@ program.command('build').argument('<spec>').option('--catalog <path>').option('-
   const opts = { ...globalOpts(command), ...local }; const spec = await parseSpecFile(path); const catalog = await catalogFor(opts); const result = buildFlow(spec, catalog.nodes, await credentialsFor(opts))
   const artifacts: { flowData?: string; report?: string } = {}
   if (typeof opts.output === 'string' && result.valid) { await writeJson(opts.output, result.flowData); artifacts.flowData = resolve(opts.output) }
-  const report = makeReport('build', { ok: result.valid, nodes: result.flowData.nodes.length, edges: result.flowData.edges.length, diagnostics: result.diagnostics, artifacts, data: opts.output ? undefined : redact({ flowData: result.flowData }), meta: { builderVersion: '0.1.0', specApiVersion: spec.apiVersion, catalogHash: catalog.hash } })
+  const report = makeReport('build', { ok: result.valid, nodes: result.flowData.nodes.length, edges: result.flowData.edges.length, diagnostics: result.diagnostics, artifacts, data: opts.output ? undefined : redact({ flowData: result.flowData }), meta: { builderVersion: VERSION, specApiVersion: spec.apiVersion, catalogHash: catalog.hash } })
   if (typeof opts.report === 'string') { artifacts.report = resolve(opts.report); await writeJson(opts.report, report) }
   emitReport(report, String(opts.format)); if (!result.valid) process.exitCode = 2
 })

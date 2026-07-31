@@ -55,16 +55,19 @@ The token must authorize management APIs; a Prediction API key is not sufficient
 
 ```bash
 flowise-agentflow doctor --format json
-flowise-agentflow inspect-nodes --component agentAgentflow --snapshot catalog.json
-flowise-agentflow build examples/simple-agent.yaml --catalog catalog.json --offline --output build/simple.flow.json --format json
-flowise-agentflow validate examples/simple-agent.yaml --catalog catalog.json --offline --strict --format json
-flowise-agentflow diff examples/simple-agent.yaml --target-id ID --catalog catalog.json --format json
-flowise-agentflow update examples/simple-agent.yaml --target-id ID --catalog catalog.json --apply --format json
+flowise-agentflow list --format json
+flowise-agentflow inspect --target-id ID --format json
+flowise-agentflow inspect-nodes --component startAgentflow --format json
+flowise-agentflow inspect-nodes --component agentAgentflow --format json
+flowise-agentflow build examples/simple-agent.yaml --output build/simple.flow.json --format json
+flowise-agentflow validate examples/simple-agent.yaml --strict --format json
+flowise-agentflow diff examples/simple-agent.yaml --target-id ID --format json
+flowise-agentflow update examples/simple-agent.yaml --target-id ID --apply --format json
 ```
 
 `create` and `update` are dry runs unless `--apply` is present. Every JSON-mode invocation writes exactly one report object to stdout; verbose details go to stderr. Update rejects non-Agentflow targets, checks `updatedDate` again immediately before PUT, and performs no PUT when semantic data is unchanged.
 
-`build`, `validate`, `diff`, `doctor`, and `inspect-nodes` never mutate Flowise. `export` writes a local artifact only. Exit codes are 0 success/no diff, 1 local/internal failure, 2 validation failure, 3 remote/configuration failure, and 4 diff found.
+`list` returns only Agentflow V2 workflows. `inspect` returns a structural projection with local node references and configuration metadata; it omits prompts, input values, credentials, endpoints, and raw canvas IDs. `build`, `validate`, `diff`, `doctor`, `list`, `inspect`, and `inspect-nodes` never mutate Flowise. `export` writes a local artifact only. Exit codes are 0 success/no diff, 1 local/internal failure, 2 validation failure, 3 remote/configuration failure, and 4 diff found.
 
 ## Spec and credentials
 
@@ -77,7 +80,7 @@ credentials:
 
 The CLI never creates credentials. The default mapping filename is gitignored; do not commit an alternate mapping either.
 
-Build and export artifacts can contain credential IDs, prompts, and external endpoints. The CLI creates explicit artifact files with owner-only permissions, but callers must also protect backups and CI artifacts. Reports redact common secret fields and semantic diff values.
+Build and export artifacts can contain credential IDs, prompts, and external endpoints. The CLI creates explicit artifact files with owner-only permissions, but callers must also protect backups and CI artifacts. Reports redact common secret fields and semantic diff values. Runtime `list` output contains Flowise resource IDs and user-supplied names; use it locally and never commit captured output. Node catalog reports and snapshots discard Flowise runtime fields and absolute filesystem paths.
 
 ## Compatibility and limits
 

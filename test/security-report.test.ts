@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { redact, redactText } from '../src/output/secret-redactor.js'
-import { emitReport, makeReport } from '../src/output/report-writer.js'
+import { emitReport, escapeTerminalText, makeReport } from '../src/output/report-writer.js'
 import { writeSensitiveJson } from '../src/output/artifact-writer.js'
 import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -31,5 +31,8 @@ describe('security and report contracts', () => {
     expect(write).toHaveBeenCalledTimes(1)
     expect(() => JSON.parse(String(write.mock.calls[0]?.[0]).trim())).not.toThrow()
     write.mockRestore()
+  })
+  it('escapes terminal control characters in remote display fields', () => {
+    expect(escapeTerminalText('name\nnext\t\u001b[31mred\u009b0m')).toBe('name\\nnext\\t\\u001b[31mred\\u009b0m')
   })
 })

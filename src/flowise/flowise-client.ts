@@ -2,6 +2,7 @@ import type { NodeDataSchema } from '../domain/node-catalog.js'
 import type { FlowData } from '../domain/flow-data.js'
 import type { Chatflow } from './flowise-api-types.js'
 import { redactText } from '../output/secret-redactor.js'
+import { sanitizeCatalog, sanitizeCatalogNode } from './catalog-sanitizer.js'
 
 export interface ClientOptions { baseUrl: string; token?: string; authHeader?: string; authScheme?: string; headers?: Record<string, string>; timeoutMs?: number; allowInsecureHttp?: boolean; maxResponseBytes?: number; fetch?: typeof fetch }
 export function normalizeBaseUrl(input: string): string {
@@ -47,8 +48,8 @@ export class FlowiseClient {
     if (data === undefined) throw new FlowiseError('REMOTE_MALFORMED_RESPONSE', 'Flowise returned a non-JSON response', response.status)
     return data as T
   }
-  listNodes() { return this.request<NodeDataSchema[]>('GET', '/nodes?client=agentflowsdk') }
-  getNode(name: string) { return this.request<NodeDataSchema>('GET', `/nodes/${encodeURIComponent(name)}?client=agentflowsdk`) }
+  async listNodes() { return sanitizeCatalog(await this.request<NodeDataSchema[]>('GET', '/nodes?client=agentflowsdk')) }
+  async getNode(name: string) { return sanitizeCatalogNode(await this.request<NodeDataSchema>('GET', `/nodes/${encodeURIComponent(name)}?client=agentflowsdk`)) }
   listChatflows() { return this.request<Chatflow[]>('GET', '/chatflows') }
   getChatflow(id: string) { return this.request<Chatflow>('GET', `/chatflows/${encodeURIComponent(id)}`) }
   createAgentflow(input: { name: string; flowData: FlowData }) { return this.request<Chatflow>('POST', '/chatflows', { name: input.name, flowData: JSON.stringify(input.flowData), type: 'AGENTFLOW' }) }

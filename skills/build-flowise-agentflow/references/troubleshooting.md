@@ -6,5 +6,7 @@
 - `INPUT_REQUIRED_MISSING`, `NESTED_CONFIG_INVALID`: inspect the selected component and fill visible required fields.
 - `CREDENTIAL_ALIAS_UNRESOLVED`: ask for an existing alias mapping; never request the secret itself.
 - `REMOTE_UNAUTHENTICATED` / `REMOTE_FORBIDDEN`: distinguish missing login from missing management permission.
+- `REMOTE_FLOW_DATA_INVALID`: list may warn for one malformed Agentflow; inspect cannot continue until that target is repaired.
+- `TARGET_NOT_AGENTFLOW`: select an ID returned by `flowise-agentflow list`, not a Chatflow ID.
 - `REMOTE_CHANGED`: re-fetch and diff; use `--force` only after explicit authorization.
 - `REMOTE_WRITE_UNCERTAIN`: inspect by name/time before retrying; never automatically repeat the write.

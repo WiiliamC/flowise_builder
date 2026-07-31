@@ -31,4 +31,10 @@ describe('FlowiseClient', () => {
     await expect(client.listNodes()).rejects.toMatchObject({ code: status === 401 ? 'REMOTE_UNAUTHENTICATED' : 'REMOTE_FORBIDDEN' })
     try { await client.listNodes() } catch (error) { expect(JSON.stringify(error)).not.toContain('top-secret'); expect(error).toBeInstanceOf(FlowiseError) }
   })
+  it('sanitizes node catalogs at the client boundary', async () => {
+    const client = mock(200, [{ name: 'startAgentflow', label: 'Start', filePath: '/private/flowise/Start.js', icon: '/private/flowise/start.svg', inputs: [{ name: 'path', label: 'Path', type: 'string', default: '/valid/schema/default' }] }])
+    const nodes = await client.listNodes()
+    expect(nodes).toEqual([{ name: 'startAgentflow', label: 'Start', inputs: [{ name: 'path', label: 'Path', type: 'string' }] }])
+    expect(JSON.stringify(nodes)).not.toMatch(/\/(?:private|valid)\//)
+  })
 })

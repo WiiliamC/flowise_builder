@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FlowiseClient } from '../../src/flowise/flowise-client.js'
+import { inspectAgentflow, listAgentflows } from '../../src/application/inspect-agentflows.js'
 
 const enabled = process.env.FLOWISE_INTEGRATION === '1'
 describe.skipIf(!enabled)('live Flowise read-only integration', () => {
@@ -14,5 +15,14 @@ describe.skipIf(!enabled)('live Flowise read-only integration', () => {
     expect(Array.isArray(nodes)).toBe(true)
     expect(nodes.some((node) => node.name === 'startAgentflow')).toBe(true)
     expect(Array.isArray(chatflows)).toBe(true)
+    expect(JSON.stringify(nodes)).not.toMatch(/"filePath"\s*:/)
+    const listed = listAgentflows(chatflows)
+    expect(listed.agentflows.every((flow) => flow.type === 'AGENTFLOW')).toBe(true)
+    const first = listed.agentflows[0]
+    if (first) {
+      const inspection = inspectAgentflow(await client.getChatflow(first.id))
+      expect(inspection.agentflow.id).toBe(first.id)
+      expect(inspection.graph.nodes.every((node) => /^n\d+$/.test(node.ref))).toBe(true)
+    }
   })
 })

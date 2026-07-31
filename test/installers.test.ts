@@ -35,6 +35,17 @@ describe('CLI and installers', () => {
     expect(result.status).toBe(0)
     expect(readFileSync(output, 'utf8')).toBe(`${packageVersion}\n`)
     expect(readFileSync(errors, 'utf8')).toBe('')
+    const helpOutput = join(dir, 'help-stdout'); const helpErrors = join(dir, 'help-stderr')
+    const help = spawnSync('bash', ['-c', 'node dist/cli.js --help > "$1" 2> "$2"', 'bash', helpOutput, helpErrors], { cwd: root, encoding: 'utf8' })
+    expect(help.status).toBe(0)
+    expect(readFileSync(helpOutput, 'utf8')).toContain('list')
+    expect(readFileSync(helpOutput, 'utf8')).toContain('inspect')
+    expect(readFileSync(helpErrors, 'utf8')).toBe('')
+    const inspectHelpOutput = join(dir, 'inspect-help-stdout'); const inspectHelpErrors = join(dir, 'inspect-help-stderr')
+    const inspectHelp = spawnSync('bash', ['-c', 'node dist/cli.js inspect --help > "$1" 2> "$2"', 'bash', inspectHelpOutput, inspectHelpErrors], { cwd: root, encoding: 'utf8' })
+    expect(inspectHelp.status).toBe(0)
+    expect(readFileSync(inspectHelpOutput, 'utf8')).toContain('--target-id <id>')
+    expect(readFileSync(inspectHelpErrors, 'utf8')).toBe('')
   })
 
   it('runs the lockfile-pinned CLI install sequence and verifies the linked version', () => {

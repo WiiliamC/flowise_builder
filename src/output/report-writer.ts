@@ -1,6 +1,15 @@
 import type { Diagnostic, Report } from '../domain/diagnostics.js'
 import { summarize } from '../domain/diagnostics.js'
 
+export function escapeTerminalText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f-\u009f]/g, (character) => {
+    if (character === '\n') return '\\n'
+    if (character === '\r') return '\\r'
+    if (character === '\t') return '\\t'
+    return `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
+  })
+}
+
 export function makeReport(command: string, options: { ok: boolean; applied?: boolean; changed?: boolean; nodes?: number; edges?: number; diagnostics?: Diagnostic[]; target?: Report['target']; artifacts?: Report['artifacts']; data?: unknown; error?: Report['error']; meta?: Report['meta'] }): Report {
   const diagnostics = options.diagnostics ?? []
   return {
@@ -9,10 +18,11 @@ export function makeReport(command: string, options: { ok: boolean; applied?: bo
     ...(options.artifacts ? { artifacts: options.artifacts } : {}), ...(options.data !== undefined ? { data: options.data } : {}), ...(options.error ? { error: options.error } : {}), ...(options.meta ? { meta: options.meta } : {})
   }
 }
-export function emitReport(report: Report, format: string): void {
+export function emitReport(report: Report, format: string, humanDetails: string[] = []): void {
   if (format === 'json') process.stdout.write(`${JSON.stringify(report)}\n`)
   else {
     process.stdout.write(`${report.ok ? 'OK' : 'ERROR'} ${report.command}: ${report.summary.nodes} nodes, ${report.summary.edges} edges, ${report.summary.errors} errors, ${report.summary.warnings} warnings\n`)
+    for (const line of humanDetails) process.stdout.write(`${line}\n`)
     for (const item of report.diagnostics) process.stdout.write(`${item.severity.toUpperCase()} ${item.code}: ${item.message}\n`)
     if (report.error) process.stdout.write(`${report.error.code}: ${report.error.message}\n`)
   }
