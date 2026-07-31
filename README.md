@@ -14,13 +14,13 @@ Install the CLI from a checkout with:
 
 The script requires pnpm's global bin directory to be configured (`pnpm setup`), installs lockfile-pinned dependencies, builds the CLI, links it globally with pnpm, and verifies `flowise-agentflow --version`. It does not install system dependencies or configure a Flowise instance.
 
-To make the bundled Codex Skill available from this checkout, run:
+To make the bundled Codex Skill available to a project, pass its project root:
 
 ```bash
-./scripts/install-skill.sh
+./scripts/install-skill.sh --project .
 ```
 
-This creates the repository-local `.agents/skills/build-flowise-agentflow` symlink. To copy the skill to your user-level Codex skills directory instead, run `./scripts/install-skill.sh --global`. Existing targets require `--force` to replace them.
+This creates `.agents/skills/build-flowise-agentflow` under the selected project as a symlink to the Skill in this checkout. The project directory must already exist. To copy the skill to your user-level Codex skills directory instead, run `./scripts/install-skill.sh --global`. Existing targets require `--force` to replace them. Running the script without arguments, or with `-h` or `--help`, displays usage without installing.
 
 Manual CLI installation remains:
 

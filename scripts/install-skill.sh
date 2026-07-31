@@ -3,25 +3,59 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/install-skill.sh [--global] [--force] [--help]
+Usage:
+  scripts/install-skill.sh --project DIR [--force]
+  scripts/install-skill.sh --global [--force]
+  scripts/install-skill.sh -h|--help
 
-Install the build-flowise-agentflow skill into this repository, or copy it to
-${CODEX_HOME:-$HOME/.codex}/skills with --global. --force replaces an existing
-target.
+Install the build-flowise-agentflow skill into DIR/.agents/skills, or copy it
+to ${CODEX_HOME:-$HOME/.codex}/skills with --global. --force replaces an
+existing target. With no arguments, this help is displayed without installing.
 EOF
 }
 
+if [ "$#" -eq 0 ]; then
+  usage
+  exit 0
+fi
+
 global=false
 force=false
+project_dir=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --global) global=true ;;
     --force) force=true ;;
-    --help) usage; exit 0 ;;
+    --project)
+      if [ -n "$project_dir" ]; then
+        printf '%s\n' 'The --project option may only be specified once.' >&2
+        usage >&2
+        exit 2
+      fi
+      shift
+      if [ "$#" -eq 0 ] || [[ "$1" == -* ]]; then
+        printf '%s\n' 'The --project option requires a directory.' >&2
+        usage >&2
+        exit 2
+      fi
+      project_dir="$1"
+      ;;
+    -h|--help) usage; exit 0 ;;
     *) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
+
+if "$global" && [ -n "$project_dir" ]; then
+  printf '%s\n' 'The --project and --global options are mutually exclusive.' >&2
+  usage >&2
+  exit 2
+fi
+if ! "$global" && [ -z "$project_dir" ]; then
+  printf '%s\n' 'Specify --project DIR or --global.' >&2
+  usage >&2
+  exit 2
+fi
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
@@ -42,8 +76,20 @@ replace_target() {
 }
 
 if ! "$global"; then
-  local_parent="$repo_root/.agents/skills"
-  if [ -L "$repo_root/.agents" ] || [ -L "$local_parent" ]; then
+  if [ ! -d "$project_dir" ]; then
+    printf '%s\n' 'Project directory must already exist.' >&2
+    exit 1
+  fi
+  if ! project_root="$(CDPATH= cd -- "$project_dir" && pwd -P)"; then
+    printf '%s\n' 'Unable to resolve the project directory.' >&2
+    exit 1
+  fi
+  if [ "$project_root" = / ]; then
+    printf '%s\n' 'Project directory must resolve to a directory other than /.' >&2
+    exit 1
+  fi
+  local_parent="$project_root/.agents/skills"
+  if [ -L "$project_root/.agents" ] || [ -L "$local_parent" ]; then
     printf '%s\n' 'Refusing to install through a symlinked repository skill path.' >&2
     exit 1
   fi
@@ -54,7 +100,10 @@ if ! "$global"; then
   fi
   target="$local_parent/build-flowise-agentflow"
   expected_target="$target"
-  relative_source='../../skills/build-flowise-agentflow'
+  relative_source="$(node -e '
+    const path = require("node:path");
+    process.stdout.write(path.relative(process.argv[1], process.argv[2]) || ".");
+  ' "$local_parent" "$source_dir")"
   if [ -L "$target" ] && [ "$(readlink "$target")" = "$relative_source" ]; then
     printf '%s\n' 'Repository skill link is already installed.'
     exit 0

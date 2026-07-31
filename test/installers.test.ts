@@ -79,15 +79,35 @@ describe('CLI and installers', () => {
     expect(readFileSync(log, 'utf8')).toBe('bin --global\ninstall --frozen-lockfile\nbuild\n')
   })
 
-  it('creates an idempotent repo-local skill symlink and protects conflicts', () => {
+  it('prints help without arguments or with either help option and does not install', () => {
     const dir = fixture(); const script = join(dir, 'scripts', 'install-skill.sh')
-    expect(run(script, dir).status).toBe(0)
+    for (const args of [[], ['-h'], ['--help']]) {
+      const result = run(script, dir, args)
+      expect(result.status).toBe(0)
+      expect(result.stdout).toContain('Usage:')
+      expect(result.stderr).toBe('')
+    }
+    expect(existsSync(join(dir, '.agents'))).toBe(false)
+  })
+
+  it('creates an idempotent project skill symlink and protects conflicts', () => {
+    const dir = fixture(); const script = join(dir, 'scripts', 'install-skill.sh')
+    expect(run(script, dir, ['--project', '.']).status).toBe(0)
     expect(readFileSync(join(dir, '.agents', 'skills', 'build-flowise-agentflow', 'SKILL.md'), 'utf8')).toContain('Flowise')
-    expect(run(script, dir).status).toBe(0)
+    expect(run(script, dir, ['--project', dir]).status).toBe(0)
     rmSync(join(dir, '.agents', 'skills', 'build-flowise-agentflow'))
     mkdirSync(join(dir, '.agents', 'skills', 'build-flowise-agentflow'))
-    expect(run(script, dir).status).not.toBe(0)
-    expect(run(script, dir, ['--force']).status).toBe(0)
+    expect(run(script, dir, ['--project', dir]).status).not.toBe(0)
+    expect(run(script, dir, ['--project', dir, '--force']).status).toBe(0)
+  })
+
+  it('installs into an external project using a relative path with spaces', () => {
+    const dir = fixture(); const script = join(dir, 'scripts', 'install-skill.sh')
+    const project = join(dir, 'projects', 'example project')
+    mkdirSync(project, { recursive: true })
+    const result = run(script, dir, ['--project', join('projects', 'example project')])
+    expect(result.status).toBe(0)
+    expect(readFileSync(join(project, '.agents', 'skills', 'build-flowise-agentflow', 'SKILL.md'), 'utf8')).toContain('Flowise')
   })
 
   it('rejects a symlinked repo-local skill parent without changing its target', () => {
@@ -95,10 +115,25 @@ describe('CLI and installers', () => {
     mkdirSync(join(external, 'skills', 'build-flowise-agentflow'), { recursive: true })
     writeFileSync(join(external, 'skills', 'build-flowise-agentflow', 'sentinel'), 'keep')
     symlinkSync(external, join(dir, '.agents'))
-    const result = run(script, dir, ['--force'])
+    const result = run(script, dir, ['--project', dir, '--force'])
     expect(result.status).not.toBe(0)
     expect(result.stderr).toContain('symlinked repository skill path')
     expect(readFileSync(join(external, 'skills', 'build-flowise-agentflow', 'sentinel'), 'utf8')).toBe('keep')
+  })
+
+  it('rejects invalid project and option combinations without installing', () => {
+    const dir = fixture(); const script = join(dir, 'scripts', 'install-skill.sh')
+    for (const args of [
+      ['--project'],
+      ['--project', '--global'],
+      ['--project', dir, '--global'],
+      ['--force'],
+      ['--unexpected'],
+    ]) {
+      expect(run(script, dir, args).status).toBe(2)
+    }
+    expect(run(script, dir, ['--project', join(dir, 'missing')]).status).not.toBe(0)
+    expect(existsSync(join(dir, '.agents'))).toBe(false)
   })
 
   it('copies globally under the default Codex home and replaces an existing copy only with --force', () => {
