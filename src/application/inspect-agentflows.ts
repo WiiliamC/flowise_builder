@@ -72,7 +72,7 @@ function isFlowEdge(value: unknown): boolean {
     && (value.targetHandle === undefined || typeof value.targetHandle === 'string')
 }
 
-function parseFlowData(remote: Chatflow): FlowData {
+export function parseFlowData(remote: Chatflow): FlowData {
   try {
     const parsed: unknown = typeof remote.flowData === 'string' ? JSON.parse(remote.flowData) : remote.flowData
     if (!isRecord(parsed) || !Array.isArray(parsed.nodes) || !parsed.nodes.every(isFlowNode) || !Array.isArray(parsed.edges) || !parsed.edges.every(isFlowEdge)) throw new Error('invalid shape')

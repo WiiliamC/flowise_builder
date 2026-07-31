@@ -9,6 +9,7 @@ import { semanticDiff } from './application/diff-flow.js'
 import { createAgentflow } from './application/create-flow.js'
 import { copyAgentflow } from './application/copy-flow.js'
 import { updateAgentflow } from './application/update-flow.js'
+import { editSystemPrompt } from './application/edit-system-prompt.js'
 import { loadCatalog, snapshotCatalog, catalogHash } from './flowise/node-catalog-loader.js'
 import { FlowiseClient, FlowiseError } from './flowise/flowise-client.js'
 import type { FlowData } from './domain/flow-data.js'
@@ -39,6 +40,10 @@ async function catalogFor(opts: Opts): Promise<{ nodes: NodeDataSchema[]; hash: 
 const writeJson = writeSensitiveJson
 async function credentialsFor(opts: Opts) { return loadCredentialAliases(typeof opts.credentials === 'string' ? opts.credentials : undefined) }
 function parseFlowData(remote: { flowData: string | FlowData }): FlowData { try { return typeof remote.flowData === 'string' ? JSON.parse(remote.flowData) as FlowData : remote.flowData } catch { throw new FlowiseError('REMOTE_FLOW_DATA_INVALID', 'Remote flowData is malformed') } }
+async function promptFromFile(path: string): Promise<string> {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(await readFile(path)) }
+  catch { throw new FlowiseError('PROMPT_FILE_INVALID', 'Prompt file must be readable UTF-8 text') }
+}
 
 program.command('doctor').description('Check connectivity, authentication, and read capabilities').action(async (_opts, command) => {
   const opts = globalOpts(command); const client = await clientFor(opts); const nodes = await client.listNodes(); const chatflows = await client.listChatflows()
@@ -61,6 +66,20 @@ program.command('inspect').description('Inspect a sanitized Agentflow V2 graph')
     ...inspection.graph.edges.map((edge) => `${terminalText(edge.from)} -> ${terminalText(edge.to)}${edge.outputIndex !== undefined ? ` [output ${edge.outputIndex}]` : ''}`)
   ]
   emitReport(report, String(opts.format), details)
+})
+
+program.command('edit-system-prompt').description('Edit one agent system message without exposing its content').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--if-match-updated-at <date>').option('--prompt <text>').option('--prompt-file <path>').option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }
+  const hasPrompt = typeof opts.prompt === 'string'; const hasPromptFile = typeof opts.promptFile === 'string'
+  if (hasPrompt === hasPromptFile) throw new FlowiseError('PROMPT_SOURCE_INVALID', 'Provide exactly one of --prompt or --prompt-file')
+  const prompt = hasPrompt ? String(opts.prompt) : await promptFromFile(String(opts.promptFile))
+  const client = await clientFor(opts)
+  const result = await editSystemPrompt(client, { targetId: String(opts.targetId), agentRef: String(opts.agentRef), ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt), prompt, apply: Boolean(opts.apply) })
+  emitReport(makeReport('edit-system-prompt', {
+    ok: true, changed: result.changed, applied: result.applied, nodes: result.nodes, edges: result.edges,
+    target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
+    data: { agentRef: result.agentRef, operation: result.operation }
+  }), String(opts.format))
 })
 
 program.command('inspect-nodes').option('--component <name>').option('--category <name>').option('--snapshot <path>').action(async (local, command) => {
