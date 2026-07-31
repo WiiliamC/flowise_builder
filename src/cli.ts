@@ -7,6 +7,7 @@ import { buildFlow } from './application/build-flow.js'
 import { validateFlow } from './application/validate-flow.js'
 import { semanticDiff } from './application/diff-flow.js'
 import { createAgentflow } from './application/create-flow.js'
+import { copyAgentflow } from './application/copy-flow.js'
 import { updateAgentflow } from './application/update-flow.js'
 import { loadCatalog, snapshotCatalog, catalogHash } from './flowise/node-catalog-loader.js'
 import { FlowiseClient, FlowiseError } from './flowise/flowise-client.js'
@@ -103,6 +104,17 @@ program.command('create').argument('<spec>').option('--name <name>').option('--c
   const client = catalog.client ?? await clientFor(opts); const result = await createAgentflow(client, { name: String(opts.name ?? spec.metadata.name), flowData: built.flowData, apply: true })
   const remote = 'remote' in result ? result.remote : undefined
   emitReport(makeReport('create', { ok: true, applied: result.applied, changed: true, nodes: built.flowData.nodes.length, edges: built.flowData.edges.length, diagnostics: built.diagnostics, target: { baseUrl: client.baseUrl, ...(remote ? { chatflowId: remote.id, type: remote.type } : {}) } }), String(opts.format))
+})
+
+program.command('copy').description('Copy an existing Agentflow V2 canvas within this Flowise instance').requiredOption('--source-id <id>').requiredOption('--name <name>').option('--allow-warnings').option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const catalog = await catalogFor(opts); const client = catalog.client ?? await clientFor(opts)
+  const result = await copyAgentflow(client, catalog.nodes, { sourceId: String(opts.sourceId), name: String(opts.name), allowWarnings: Boolean(opts.allowWarnings), apply: Boolean(opts.apply) })
+  const data = { source: result.source, destination: result.destination ?? { name: String(opts.name), type: 'AGENTFLOW' } }
+  emitReport(makeReport('copy', { ok: !result.blocked, applied: result.applied, changed: true, nodes: result.nodes, edges: result.edges, diagnostics: result.diagnostics, data }), String(opts.format), [
+    `Source: ${terminalText(result.source.id)}\t${terminalText(result.source.name)}`,
+    `Destination: ${result.destination ? `${terminalText(result.destination.id)}\t${terminalText(result.destination.name)}` : terminalText(String(opts.name))}`
+  ])
+  if (result.blocked) process.exitCode = 2
 })
 
 program.command('update').argument('<spec>').option('--target-id <id>').option('--if-match-updated-at <date>').option('--force').option('--catalog <path>').option('--offline').option('--apply').action(async (path, local, command) => {

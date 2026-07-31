@@ -62,12 +62,13 @@ flowise-agentflow inspect-nodes --component agentAgentflow --format json
 flowise-agentflow build examples/simple-agent.yaml --output build/simple.flow.json --format json
 flowise-agentflow validate examples/simple-agent.yaml --strict --format json
 flowise-agentflow diff examples/simple-agent.yaml --target-id ID --format json
+flowise-agentflow copy --source-id ID --name "Copy of workflow" --apply --format json
 flowise-agentflow update examples/simple-agent.yaml --target-id ID --apply --format json
 ```
 
-`create` and `update` are dry runs unless `--apply` is present. Every JSON-mode invocation writes exactly one report object to stdout; verbose details go to stderr. Update rejects non-Agentflow targets, checks `updatedDate` again immediately before PUT, and performs no PUT when semantic data is unchanged.
+`create`, `copy`, and `update` are dry runs unless `--apply` is present. Copy reads an existing `AGENTFLOW`, validates its canvas against the live node catalog, and creates a new workflow with only the requested name and original FlowData; it never copies deployment, public, API-key, chatbot, analytics, or voice metadata. Validation errors always block a copy; warnings require `--allow-warnings`. Before creating, it reads and checks the source again, then reads the destination back and requires semantic equality. Copy has no automatic retry for uncertain writes. Every JSON-mode invocation writes exactly one report object to stdout; verbose details go to stderr. Update rejects non-Agentflow targets, checks `updatedDate` again immediately before PUT, and performs no PUT when semantic data is unchanged.
 
-`list` returns only Agentflow V2 workflows. `inspect` returns a structural projection with local node references and configuration metadata; it omits prompts, input values, credentials, endpoints, and raw canvas IDs. `build`, `validate`, `diff`, `doctor`, `list`, `inspect`, and `inspect-nodes` never mutate Flowise. `export` writes a local artifact only. Exit codes are 0 success/no diff, 1 local/internal failure, 2 validation failure, 3 remote/configuration failure, and 4 diff found.
+`list` returns only Agentflow V2 workflows. `inspect` returns a structural projection with local node references and configuration metadata; it omits prompts, input values, credentials, endpoints, and raw canvas IDs. Copy reports only safe source/destination identifiers, names, types, node/edge counts, and diagnostics—it never prints raw FlowData, prompts, credentials, or endpoints. `build`, `validate`, `diff`, `doctor`, `list`, `inspect`, and `inspect-nodes` never mutate Flowise. `export` writes a local artifact only. Exit codes are 0 success/no diff, 1 local/internal failure, 2 validation failure, 3 remote/configuration failure, and 4 diff found.
 
 ## Spec and credentials
 
