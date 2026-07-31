@@ -14,6 +14,14 @@ Install the CLI from a checkout with:
 
 The script requires pnpm's global bin directory to be configured (`pnpm setup`), installs lockfile-pinned dependencies, builds the CLI, links it globally with pnpm, and verifies `flowise-agentflow --version`. It does not install system dependencies or configure a Flowise instance.
 
+Run `./scripts/install-cli.sh -h` to display the installer's help without checking dependencies or installing. To remove the CLI link created from this checkout, run:
+
+```bash
+./scripts/uninstall-cli.sh
+```
+
+The uninstaller leaves a same-named global package from another source untouched unless `--force` is explicit.
+
 To make the bundled Codex Skill available to a project, pass its project root:
 
 ```bash
@@ -21,6 +29,15 @@ To make the bundled Codex Skill available to a project, pass its project root:
 ```
 
 This creates `.agents/skills/build-flowise-agentflow` under the selected project as a symlink to the Skill in this checkout. The project directory must already exist. To copy the skill to your user-level Codex skills directory instead, run `./scripts/install-skill.sh --global`. Existing targets require `--force` to replace them. Running the script without arguments, or with `-h` or `--help`, displays usage without installing.
+
+Use the matching target option to uninstall the Skill:
+
+```bash
+./scripts/uninstall-skill.sh --project .
+./scripts/uninstall-skill.sh --global
+```
+
+Skill uninstall is idempotent and preserves parent directories. A target that does not match this checkout's link or copy is rejected unless `--force` is explicit.
 
 Manual CLI installation remains:
 

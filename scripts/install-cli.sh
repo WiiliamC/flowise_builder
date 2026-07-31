@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/install-cli.sh
+  scripts/install-cli.sh -h|--help
+
+Install the flowise-agentflow CLI from this checkout. The script installs
+lockfile-pinned dependencies, builds the package, links it globally with pnpm,
+and verifies the installed CLI version.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
 script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 
