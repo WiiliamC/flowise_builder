@@ -12,6 +12,16 @@ function mock(status: number, body: object) {
   return new FlowiseClient({ baseUrl: 'https://flowise.test', token: 'top-secret' })
 }
 
+function mockCustomMcp(status: number, body: object) {
+  const agent = new MockAgent(); agents.push(agent); agent.disableNetConnect(); setGlobalDispatcher(agent)
+  const pool = agent.get('https://flowise.test')
+  pool.intercept({
+    path: '/api/v1/node-load-method/customMCP', method: 'POST',
+    body: JSON.stringify({ loadMethod: 'listActions', inputs: { mcpServerConfig: '{"url":"https://example.test/mcp"}' } })
+  }).reply(status, body)
+  return new FlowiseClient({ baseUrl: 'https://flowise.test', token: 'top-secret' })
+}
+
 describe('FlowiseClient', () => {
   it('normalizes API URLs and rejects insecure remote authentication', () => {
     expect(normalizeBaseUrl('https://x.test/api/v1/')).toBe('https://x.test/api/v1')
@@ -36,5 +46,35 @@ describe('FlowiseClient', () => {
     const nodes = await client.listNodes()
     expect(nodes).toEqual([{ name: 'startAgentflow', label: 'Start', inputs: [{ name: 'path', label: 'Path', type: 'string' }] }])
     expect(JSON.stringify(nodes)).not.toMatch(/\/(?:private|valid)\//)
+  })
+  it('strictly loads and sanitizes Custom MCP action options', async () => {
+    const client = mockCustomMcp(200, [{ name: 'safe_action', label: 'Safe', description: 'private description' }])
+    await expect(client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')).resolves.toEqual([{ name: 'safe_action' }])
+  })
+  it('accepts a valid empty action-option array', async () => {
+    const client = mockCustomMcp(200, [])
+    await expect(client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')).resolves.toEqual([])
+  })
+  it.each([
+    { body: [{ label: 'No Available Actions', name: '' }], code: 'MCP_ACTION_DISCOVERY_FAILED' },
+    { body: [{ name: 123, label: 'Broken' }], code: 'MCP_ACTION_DISCOVERY_FAILED' },
+    { body: { unexpected: true }, code: 'MCP_ACTION_DISCOVERY_FAILED' }
+  ])('rejects unsafe Custom MCP option response shapes', async ({ body, code }) => {
+    const client = mockCustomMcp(200, body)
+    await expect(client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')).rejects.toMatchObject({ code })
+  })
+  it('maps surfaced MCP security-policy denial without echoing details', async () => {
+    const client = mockCustomMcp(403, { message: 'Security validation failed: private target denied by policy top-secret' })
+    try {
+      await client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')
+      expect.fail('expected denial')
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'MCP_TARGET_DENIED_BY_POLICY', message: 'Custom MCP target was denied by Flowise policy' })
+      expect(JSON.stringify(error)).not.toMatch(/private target|top-secret/)
+    }
+  })
+  it('maps a policy denial surfaced by an option sentinel', async () => {
+    const client = mockCustomMcp(200, [{ name: 'error', label: 'No Available Actions', description: 'Security validation failed: target denied by policy' }])
+    await expect(client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')).rejects.toMatchObject({ code: 'MCP_TARGET_DENIED_BY_POLICY' })
   })
 })

@@ -10,6 +10,7 @@ import { createAgentflow } from './application/create-flow.js'
 import { copyAgentflow } from './application/copy-flow.js'
 import { updateAgentflow } from './application/update-flow.js'
 import { editSystemPrompt } from './application/edit-system-prompt.js'
+import { editAgentMcp, inspectAgentMcp, refreshAgentMcpActions } from './application/agent-mcp.js'
 import { loadCatalog, snapshotCatalog, catalogHash } from './flowise/node-catalog-loader.js'
 import { FlowiseClient, FlowiseError } from './flowise/flowise-client.js'
 import type { FlowData } from './domain/flow-data.js'
@@ -43,6 +44,10 @@ function parseFlowData(remote: { flowData: string | FlowData }): FlowData { try 
 async function promptFromFile(path: string): Promise<string> {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(await readFile(path)) }
   catch { throw new FlowiseError('PROMPT_FILE_INVALID', 'Prompt file must be readable UTF-8 text') }
+}
+async function mcpConfigFromFile(path: string): Promise<string> {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(await readFile(path)) }
+  catch { throw new FlowiseError('MCP_CONFIG_INVALID', 'MCP config file must be readable UTF-8 text') }
 }
 
 program.command('doctor').description('Check connectivity, authentication, and read capabilities').action(async (_opts, command) => {
@@ -80,6 +85,52 @@ program.command('edit-system-prompt').description('Edit one agent system message
     target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
     data: { agentRef: result.agentRef, operation: result.operation }
   }), String(opts.format))
+})
+
+program.command('inspect-agent-mcp').description('Inspect sanitized Custom MCP metadata for one agent').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const remote = await client.getChatflow(String(opts.targetId))
+  const result = inspectAgentMcp(remote, String(opts.agentRef))
+  emitReport(makeReport('inspect-agent-mcp', {
+    ok: true, data: result, target: { baseUrl: client.baseUrl, chatflowId: remote.id, type: remote.type }
+  }), String(opts.format), result.mcps.map((mcp) => `${terminalText(mcp.ref)}\t${terminalText(mcp.transport)}\t${mcp.configHash}\tvariable refs: ${mcp.hasFlowiseVariableRefs}\t${mcp.enabledActionCount} enabled actions`))
+})
+
+program.command('edit-agent-mcp').description('Edit one existing Custom MCP configuration without discovering actions').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--mcp-ref <ref>').requiredOption('--config-file <path>').requiredOption('--if-match-updated-at <date>').option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const result = await editAgentMcp(client, {
+    targetId: String(opts.targetId), agentRef: String(opts.agentRef), mcpRef: String(opts.mcpRef),
+    ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt), configText: await mcpConfigFromFile(String(opts.configFile)), apply: Boolean(opts.apply)
+  })
+  emitReport(makeReport('edit-agent-mcp', {
+    ok: true, changed: result.changed, applied: result.applied, nodes: result.nodes, edges: result.edges,
+    target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
+    data: { agentRef: result.agentRef, mcpRef: result.mcpRef }
+  }), String(opts.format))
+})
+
+program.command('refresh-agent-mcp-actions').description('Discover current Custom MCP actions and optionally enable them').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--mcp-ref <ref>').option('--enable-all').option('--enable-action <name>', 'action name to enable (repeatable)', collect, []).option('--if-match-updated-at <date>').option('--show-action-names').option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const result = await refreshAgentMcpActions(client, {
+    targetId: String(opts.targetId), agentRef: String(opts.agentRef), mcpRef: String(opts.mcpRef),
+    enableAll: Boolean(opts.enableAll), enableActions: opts.enableAction as string[],
+    ...(opts.ifMatchUpdatedAt ? { ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt) } : {}),
+    showActionNames: Boolean(opts.showActionNames), apply: Boolean(opts.apply)
+  })
+  const names = result.availableNames ? { availableNames: result.availableNames, enabledNames: result.enabledNames, newNames: result.newNames, missingNames: result.missingNames } : {}
+  emitReport(makeReport('refresh-agent-mcp-actions', {
+    ok: true, changed: result.changed, applied: result.applied,
+    target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
+    data: { agentRef: result.agentRef, mcpRef: result.mcpRef, availableCount: result.availableCount, enabledCount: result.enabledCount, newCount: result.newCount, missingCount: result.missingCount, ...names }
+  }), String(opts.format), [
+    `Available: ${result.availableCount}\tEnabled: ${result.enabledCount}\tNew: ${result.newCount}\tMissing: ${result.missingCount}`,
+    ...(result.availableNames ? [
+      `Available names: ${result.availableNames.map(terminalText).join(', ')}`,
+      `Enabled names: ${(result.enabledNames ?? []).map(terminalText).join(', ')}`,
+      `New names: ${(result.newNames ?? []).map(terminalText).join(', ')}`,
+      `Missing names: ${(result.missingNames ?? []).map(terminalText).join(', ')}`
+    ] : [])
+  ])
 })
 
 program.command('inspect-nodes').option('--component <name>').option('--category <name>').option('--snapshot <path>').action(async (local, command) => {

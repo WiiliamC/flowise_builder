@@ -27,12 +27,12 @@ export class FlowiseClient {
     if (options.token) this.headers[options.authHeader ?? 'Authorization'] = `${options.authScheme ?? 'Bearer'} ${options.token}`
     this.timeout = options.timeoutMs ?? 30_000; this.maxBytes = options.maxResponseBytes ?? 10 * 1024 * 1024; this.fetchImpl = options.fetch ?? globalThis.fetch; this.secrets = [options.token ?? '', ...Object.values(options.headers ?? {})]
   }
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  private async request<T>(method: string, path: string, body?: unknown, remoteMutation = method === 'POST' || method === 'PUT'): Promise<T> {
     const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), this.timeout)
     let response: Response
     try { response = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers: this.headers, signal: controller.signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }) }
     catch (error) {
-      const uncertain = method === 'POST' || method === 'PUT'
+      const uncertain = remoteMutation
       throw new FlowiseError(uncertain ? 'REMOTE_WRITE_UNCERTAIN' : error instanceof Error && error.name === 'AbortError' ? 'REMOTE_TIMEOUT' : 'REMOTE_NETWORK_ERROR', uncertain ? 'Remote write result is uncertain; inspect the target before retrying' : 'Unable to reach Flowise')
     } finally { clearTimeout(timeout) }
     const length = Number(response.headers.get('content-length') ?? 0)
@@ -50,6 +50,37 @@ export class FlowiseClient {
   }
   async listNodes() { return sanitizeCatalog(await this.request<NodeDataSchema[]>('GET', '/nodes?client=agentflowsdk')) }
   async getNode(name: string) { return sanitizeCatalogNode(await this.request<NodeDataSchema>('GET', `/nodes/${encodeURIComponent(name)}?client=agentflowsdk`)) }
+  async loadCustomMcpActions(mcpServerConfig: string): Promise<Array<{ name: string }>> {
+    let data: unknown
+    try {
+      data = await this.request<unknown>('POST', '/node-load-method/customMCP', { loadMethod: 'listActions', inputs: { mcpServerConfig } }, false)
+    } catch (error) {
+      if (error instanceof FlowiseError && /(?:security validation|denied by policy|not allowed by policy)/i.test(error.message)) {
+        throw new FlowiseError('MCP_TARGET_DENIED_BY_POLICY', 'Custom MCP target was denied by Flowise policy', error.status, error.requestId)
+      }
+      throw new FlowiseError('MCP_ACTION_DISCOVERY_FAILED', 'Custom MCP action discovery failed', error instanceof FlowiseError ? error.status : undefined, error instanceof FlowiseError ? error.requestId : undefined)
+    }
+    const surfaced = (() => {
+      const messages = (value: unknown) => value && typeof value === 'object'
+        ? ['message', 'error', 'label', 'description'].flatMap((key) => key in value ? [String((value as Record<string, unknown>)[key])] : [])
+        : []
+      return (Array.isArray(data) ? data.flatMap(messages) : messages(data)).join(' ')
+    })()
+    if (/(?:security validation|denied by policy|not allowed by policy)/i.test(surfaced)) throw new FlowiseError('MCP_TARGET_DENIED_BY_POLICY', 'Custom MCP target was denied by Flowise policy')
+    if (!Array.isArray(data)) throw new FlowiseError('MCP_ACTION_DISCOVERY_FAILED', 'Custom MCP action discovery failed')
+    if (data.some((item) => item && typeof item === 'object' && 'label' in item && /no available actions/i.test(String((item as { label: unknown }).label)))) {
+      throw new FlowiseError('MCP_ACTION_DISCOVERY_FAILED', 'Custom MCP action discovery failed')
+    }
+    if (!data.every((item) => item && typeof item === 'object' && !Array.isArray(item)
+      && typeof (item as Record<string, unknown>).name === 'string'
+      && Boolean(String((item as Record<string, unknown>).name).trim())
+      && !/[\u0000-\u001f\u007f]/.test(String((item as Record<string, unknown>).name))
+      && typeof (item as Record<string, unknown>).label === 'string'
+      && ((item as Record<string, unknown>).description === undefined || typeof (item as Record<string, unknown>).description === 'string'))) {
+      throw new FlowiseError('MCP_ACTION_DISCOVERY_FAILED', 'Custom MCP action discovery failed')
+    }
+    return data.map((item) => ({ name: String((item as Record<string, unknown>).name) }))
+  }
   listChatflows() { return this.request<Chatflow[]>('GET', '/chatflows') }
   getChatflow(id: string) { return this.request<Chatflow>('GET', `/chatflows/${encodeURIComponent(id)}`) }
   createAgentflow(input: { name: string; flowData: FlowData }) { return this.request<Chatflow>('POST', '/chatflows', { name: input.name, flowData: JSON.stringify(input.flowData), type: 'AGENTFLOW' }) }
