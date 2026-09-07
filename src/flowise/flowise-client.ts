@@ -84,5 +84,6 @@ export class FlowiseClient {
   listChatflows() { return this.request<Chatflow[]>('GET', '/chatflows') }
   getChatflow(id: string) { return this.request<Chatflow>('GET', `/chatflows/${encodeURIComponent(id)}`) }
   createAgentflow(input: { name: string; flowData: FlowData }) { return this.request<Chatflow>('POST', '/chatflows', { name: input.name, flowData: JSON.stringify(input.flowData), type: 'AGENTFLOW' }) }
+  renameAgentflow(id: string, input: { name: string }) { return this.request<Chatflow>('PUT', `/chatflows/${encodeURIComponent(id)}`, { name: input.name }) }
   updateAgentflow(id: string, input: { name?: string; flowData: FlowData }) { return this.request<Chatflow>('PUT', `/chatflows/${encodeURIComponent(id)}`, { ...input, flowData: JSON.stringify(input.flowData) }) }
 }

@@ -9,6 +9,7 @@ import { semanticDiff } from './application/diff-flow.js'
 import { createAgentflow } from './application/create-flow.js'
 import { copyAgentflow } from './application/copy-flow.js'
 import { updateAgentflow } from './application/update-flow.js'
+import { renameAgentflow } from './application/rename-agentflow.js'
 import { editSystemPrompt } from './application/edit-system-prompt.js'
 import { editAgentMcp, inspectAgentMcp, refreshAgentMcpActions } from './application/agent-mcp.js'
 import { loadCatalog, snapshotCatalog, catalogHash } from './flowise/node-catalog-loader.js'
@@ -71,6 +72,19 @@ program.command('inspect').description('Inspect a sanitized Agentflow V2 graph')
     ...inspection.graph.edges.map((edge) => `${terminalText(edge.from)} -> ${terminalText(edge.to)}${edge.outputIndex !== undefined ? ` [output ${edge.outputIndex}]` : ''}`)
   ]
   emitReport(report, String(opts.format), details)
+})
+
+program.command('rename').description('Rename an existing Agentflow without changing its canvas').requiredOption('--target-id <id>').requiredOption('--name <name>').option('--if-match-updated-at <date>').option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const result = await renameAgentflow(client, {
+    targetId: String(opts.targetId), name: String(opts.name), apply: Boolean(opts.apply),
+    ...(opts.ifMatchUpdatedAt !== undefined ? { ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt) } : {})
+  })
+  emitReport(makeReport('rename', {
+    ok: true, changed: result.changed, applied: result.applied,
+    target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
+    data: { before: result.before, after: result.after }
+  }), String(opts.format), [`Before: ${terminalText(result.before.name)}`, `After: ${terminalText(result.after.name)}`])
 })
 
 program.command('edit-system-prompt').description('Edit one agent system message without exposing its content').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--if-match-updated-at <date>').option('--prompt <text>').option('--prompt-file <path>').option('--apply').action(async (local, command) => {

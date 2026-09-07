@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MockAgent, setGlobalDispatcher } from 'undici'
 import { FlowiseClient, FlowiseError, normalizeBaseUrl } from '../src/flowise/flowise-client.js'
 
@@ -76,5 +76,21 @@ describe('FlowiseClient', () => {
   it('maps a policy denial surfaced by an option sentinel', async () => {
     const client = mockCustomMcp(200, [{ name: 'error', label: 'No Available Actions', description: 'Security validation failed: target denied by policy' }])
     await expect(client.loadCustomMcpActions('{"url":"https://example.test/mcp"}')).rejects.toMatchObject({ code: 'MCP_TARGET_DENIED_BY_POLICY' })
+  })
+})
+
+
+describe('name-only rename request', () => {
+  it('encodes the target and sends exactly the name field', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'target/id', name: ' New 名称 ' })))
+    const client = new FlowiseClient({ baseUrl: 'https://example.com', fetch })
+    await client.renameAgentflow('target/id', { name: ' New 名称 ' })
+    expect(fetch).toHaveBeenCalledExactlyOnceWith('https://example.com/api/v1/chatflows/target%2Fid', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ name: ' New 名称 ' }) }))
+  })
+  it('does not retry or fall back when a rename write is uncertain', async () => {
+    const fetch = vi.fn().mockRejectedValue(new Error('example transport failure'))
+    const client = new FlowiseClient({ baseUrl: 'https://example.com', fetch })
+    await expect(client.renameAgentflow('target', { name: 'New' })).rejects.toMatchObject({ code: 'REMOTE_WRITE_UNCERTAIN' })
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 })

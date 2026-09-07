@@ -13,5 +13,7 @@
 - `MCP_ACTION_DISCOVERY_FAILED`: verify the stored configuration and Flowise-side MCP availability without exposing configuration or action descriptions.
 - `MCP_ACTION_SELECTION_INVALID`: select only names returned by the same discovery and do not combine `--enable-all` with `--enable-action`.
 - `MCP_TARGET_DENIED_BY_POLICY`: do not attempt to bypass Flowise target or network policy; ask the Flowise administrator to review the target through an approved process.
-- `REMOTE_CHANGED`: re-fetch and diff; use `--force` only after explicit authorization.
+- `NAME_INVALID`: provide a name containing at least one non-whitespace character; rename preserves the name exactly.
+- `REMOTE_CHANGED`: re-fetch and review the intended change. Rename checks any supplied timestamp exactly (a missing remote timestamp fails) and checks type/name/timestamp again before PUT; it has no `--force` option. For full update, diff again and use `--force` only after explicit authorization.
+- `REMOTE_PERSISTENCE_MISMATCH`: readback did not match the requested change. For rename, inspect the target ID, type, and name before deciding how to proceed; never automatically repeat the write.
 - `REMOTE_WRITE_UNCERTAIN`: inspect by name/time before retrying; never automatically repeat the write.
