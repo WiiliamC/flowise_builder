@@ -10,6 +10,7 @@ import { createAgentflow } from './application/create-flow.js'
 import { copyAgentflow } from './application/copy-flow.js'
 import { updateAgentflow } from './application/update-flow.js'
 import { renameAgentflow } from './application/rename-agentflow.js'
+import { editAgentModel, inspectAgentModel } from './application/agent-model.js'
 import { editSystemPrompt } from './application/edit-system-prompt.js'
 import { editAgentMcp, inspectAgentMcp, refreshAgentMcpActions } from './application/agent-mcp.js'
 import { loadCatalog, snapshotCatalog, catalogHash } from './flowise/node-catalog-loader.js'
@@ -28,6 +29,11 @@ import { VERSION } from './version.js'
 type Opts = Record<string, unknown>
 const program = new Command().name('flowise-agentflow').version(VERSION).showHelpAfterError()
 program.exitOverride()
+let modelCommand = false
+program.hook('preSubcommand', (_parent, command) => {
+  modelCommand = command.name() === 'inspect-agent-model' || command.name() === 'edit-agent-model'
+  if (modelCommand) command.configureOutput({ writeErr: () => {} })
+})
 const collect = (value: string, previous: string[]) => [...previous, value]
 program.option('--config <path>').option('--credentials <path>', 'private credential alias mapping').option('--base-url <url>').option('--token-env <name>', 'token environment variable', 'FLOWISE_API_TOKEN').option('--format <format>', 'human|json', 'human').option('--timeout <ms>').option('--header <header>', 'custom Name: value header', collect, []).option('--verbose').option('--allow-insecure-http')
 
@@ -99,6 +105,26 @@ program.command('edit-system-prompt').description('Edit one agent system message
     target: { baseUrl: client.baseUrl, chatflowId: String(opts.targetId), type: 'AGENTFLOW' },
     data: { agentRef: result.agentRef, operation: result.operation }
   }), String(opts.format))
+})
+
+program.command('inspect-agent-model').description('Inspect safe model parameters for one agent').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const result = await inspectAgentModel(client, { targetId: String(opts.targetId), agentRef: String(opts.agentRef) })
+  emitReport(makeReport('inspect-agent-model', { ok: true, data: result, diagnostics: result.warnings }), String(opts.format), [
+    `Agent: ${terminalText(result.agentRef)}; component: ${result.component}; editing supported: ${result.supported}`,
+    `Updated: ${terminalText(result.updatedDate ?? 'unavailable')}`,
+    ...result.parameters.map((p) => `${p.alias}: ${JSON.stringify(p.stored)}; type: ${p.type}; allowed: ${JSON.stringify(p.enum ?? { min: p.min, max: p.max })}; dependencies: ${JSON.stringify(p.dependencies)}; conditional visibility: ${p.catalogVisibilityConditional}; catalog default: ${JSON.stringify(p.catalogDefault)}`)
+  ])
+})
+
+program.command('edit-agent-model').description('Preview or apply precise model parameter assignments').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--if-match-updated-at <date>').requiredOption('--set <key=value>', 'allowed alias assignment (repeatable)', collect, []).option('--apply').action(async (local, command) => {
+  const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
+  const result = await editAgentModel(client, { targetId: String(opts.targetId), agentRef: String(opts.agentRef), ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt), set: opts.set as string[], apply: Boolean(opts.apply) })
+  emitReport(makeReport('edit-agent-model', { ok: true, changed: result.changed, applied: result.applied, data: result, diagnostics: result.warnings }), String(opts.format), [
+    `Agent: ${terminalText(result.agentRef)}; changed: ${result.changed}; applied: ${result.applied}`,
+    `Updated: ${terminalText(result.updatedDate ?? 'unavailable')}`,
+    ...result.changes.map((p) => `${p.alias}: ${JSON.stringify(p.before)} -> ${JSON.stringify(p.after)}`)
+  ])
 })
 
 program.command('inspect-agent-mcp').description('Inspect sanitized Custom MCP metadata for one agent').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').action(async (local, command) => {
@@ -219,8 +245,8 @@ program.command('export').requiredOption('--target-id <id>').requiredOption('--o
 try { await program.parseAsync(process.argv) } catch (error) {
   if (error instanceof CommanderError && (error.code === 'commander.helpDisplayed' || error.code === 'commander.version')) process.exitCode = 0
   else {
-    const opts = program.opts() as Opts; const code = error instanceof FlowiseError ? error.code : error instanceof SpecError ? error.code : error && typeof error === 'object' && 'code' in error ? String(error.code) : 'INTERNAL_ERROR'; const message = error instanceof Error ? error.message : String(error)
-    if (opts.verbose && error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`)
+    const opts = program.opts() as Opts; const code = error instanceof FlowiseError ? error.code : error instanceof SpecError ? error.code : error && typeof error === 'object' && 'code' in error ? String(error.code) : 'INTERNAL_ERROR'; const message = modelCommand ? (error instanceof FlowiseError ? error.message : 'Model command failed; check arguments and connection configuration') : error instanceof Error ? error.message : String(error)
+    if (!modelCommand && opts.verbose && error instanceof Error && error.stack) process.stderr.write(`${error.stack}\n`)
     emitReport(makeReport(program.args[0] ?? 'unknown', { ok: false, error: { code, message }, diagnostics: error instanceof SpecError ? error.diagnostics : [] }), String(opts.format ?? 'human'))
     process.exitCode = error instanceof FlowiseError ? 3 : error instanceof SpecError ? 2 : 1
   }

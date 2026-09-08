@@ -113,3 +113,30 @@ pnpm pack
 ```
 
 Live read-only integration is opt-in (`FLOWISE_INTEGRATION=1`) and accepts remote hosts only with `FLOWISE_INTEGRATION_ALLOW_REMOTE=1`. No integration test or remote write runs by default. The Codex Skill is in `skills/build-flowise-agentflow`.
+
+### Precise agent model parameters
+
+Use `inspect` to find the current `nN` agent reference, then inspect its model parameters and exact timestamp:
+
+```sh
+flowise-agentflow inspect-agent-model --target-id ID --agent-ref n2 --format json
+flowise-agentflow edit-agent-model --target-id ID --agent-ref n2 --if-match-updated-at DATE --set reasoning.enabled=true --set reasoning.effort=high --format json
+```
+
+Review the preview, then repeat with `--apply` when authorized. Both preview and apply require an exact `--if-match-updated-at` match, including no-ops. No-ops never PUT. These commands read the live target and model catalog; they do not support offline catalogs, model config files, unset/reset, arbitrary paths, batches, or force.
+
+V1 supports only an existing `agentAgentflow` with an object `agentModelConfig` and the `chatOpenAI` component. The fixed aliases below are further restricted by live catalog field types, options, bounds, and visibility. Missing or incompatible catalog fields cannot be edited.
+
+| Alias | Stored field | Accepted value |
+| --- | --- | --- |
+| `reasoning.enabled` | `reasoning` | Exact `true` or `false` |
+| `reasoning.effort` | `reasoningEffort` | `low`, `medium`, `high`, `xhigh`, intersected with live options |
+| `temperature` | `temperature` | Finite number from 0 through 2 |
+| `max-output-tokens` | `maxTokens` | Positive safe integer |
+| `top-p` | `topP` | Finite number from 0 through 1 |
+
+Assignments are repeatable and must use distinct aliases. Values are strict scalar literals. Setting effort requires reasoning to be explicitly true in the combined configuration; no dependent field is changed implicitly. Disabling reasoning retains any stored effort. Unrelated historical values, including numeric strings, are preserved. Inspection distinguishes stored, absent, and invalid values from catalog defaults; defaults are never silently materialized. Invalid stored values are marked without echoing their contents. Arbitrary model names, endpoints, headers, credentials, prompts, tools, and graph details are omitted from these reports and cannot be edited through these commands.
+
+Schema-valid edits carry `MODEL_COMPATIBILITY_UNVERIFIED`, including for custom endpoints. The CLI makes no model calls and does not establish whether the runtime model supports the requested values. This warning does not block applying an otherwise valid edit or require an additional confirmation.
+
+Apply checks that the full delta contains only requested allowed fields, rereads and compares the exact timestamp and complete FlowData, sends only `{flowData}`, and verifies full semantic equality on readback, including metadata. The result includes the persisted timestamp. This is a client-side concurrency check: a race remains between the last read and PUT because there is no atomic server precondition. Uncertain writes and readback failures are never retried or rolled back; inspect the target before deciding the next action.
