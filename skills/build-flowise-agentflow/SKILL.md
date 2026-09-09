@@ -23,7 +23,7 @@ All commands may emit terminal reports. Never place captured reports, runtime ID
 | `list` | None | None; reads chatflows. |
 | `inspect` | None | None; reads one chatflow and returns a sanitized projection. |
 | `inspect-agent-model` | None | None; reads one agent model and live catalog, returning only allowed typed parameters and the timestamp. |
-| `edit-agent-model` | None | Preview by default. With authorization and `--apply`: changes only requested whitelisted model fields, sends only full FlowData after exact timestamp and canvas checks, and verifies complete readback. No-op never PUTs. |
+| `edit-agent-model` | None; `--set-file` reads a UTF8 file and `--set-env` reads an environment variable. | Preview by default. With authorization and `--apply`: changes only requested whitelisted model fields, sends only full FlowData after exact timestamp and canvas checks, and verifies complete readback. No-op never PUTs. |
 | `inspect-agent-mcp` | None | None; enumerates existing Custom MCP tools under one inspected agent using sanitized `mN` refs and metadata only. |
 | `inspect-nodes` | Optional protected catalog snapshot with `--snapshot` | None; otherwise reads node catalog. |
 | `build` | Optional protected FlowData (`--output`) and report (`--report`) artifacts | None; may read node catalog unless offline catalog is supplied. |
@@ -44,4 +44,4 @@ Rename rejects whitespace-only names and preserves other names exactly. Its time
 
 See `references/spec-reference.md` for the contract and `references/troubleshooting.md` for error handling.
 
-For precise model configuration, follow [references/agent-model.md](references/agent-model.md): inspect the current agent model, preview repeatable allowed `--set` assignments with the exact inspected timestamp, then apply within existing user authorization. Runtime compatibility warnings alone do not require extra confirmation. Do not reconstruct or export FlowData for this operation.
+For precise model configuration, follow [references/agent-model.md](references/agent-model.md): inspect the current agent model, preview repeatable allowed `--set`, `--set-env`, `--set-file`, or `--unset` operations with the exact inspected timestamp, then apply within existing user authorization. Runtime compatibility warnings alone do not require extra confirmation. Do not reconstruct or export FlowData for this operation.

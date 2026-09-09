@@ -113,13 +113,13 @@ program.command('inspect-agent-model').description('Inspect safe model parameter
   emitReport(makeReport('inspect-agent-model', { ok: true, data: result, diagnostics: result.warnings }), String(opts.format), [
     `Agent: ${terminalText(result.agentRef)}; component: ${result.component}; editing supported: ${result.supported}`,
     `Updated: ${terminalText(result.updatedDate ?? 'unavailable')}`,
-    ...result.parameters.map((p) => `${p.alias}: ${JSON.stringify(p.stored)}; type: ${p.type}; allowed: ${JSON.stringify(p.enum ?? { min: p.min, max: p.max })}; dependencies: ${JSON.stringify(p.dependencies)}; conditional visibility: ${p.catalogVisibilityConditional}; catalog default: ${JSON.stringify(p.catalogDefault)}`)
+    ...result.parameters.map((p) => `${p.alias}: ${JSON.stringify(p.stored)}; field: ${p.field}; aliases: ${p.aliases.join(', ')}; optional: ${p.optional}; type: ${p.type}; allowed: ${JSON.stringify(p.enum ?? { min: p.min, max: p.max })}; dependencies: ${JSON.stringify(p.dependencies)}; conditional visibility: ${p.catalogVisibilityConditional}; catalog default: ${JSON.stringify(p.catalogDefault)}`)
   ])
 })
 
-program.command('edit-agent-model').description('Preview or apply precise model parameter assignments').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--if-match-updated-at <date>').requiredOption('--set <key=value>', 'allowed alias assignment (repeatable)', collect, []).option('--apply').action(async (local, command) => {
+program.command('edit-agent-model').description('Preview or apply precise model parameter assignments').requiredOption('--target-id <id>').requiredOption('--agent-ref <ref>').requiredOption('--if-match-updated-at <date>').option('--set <key=value>', 'field or alias assignment (repeatable)', collect, []).option('--set-env <key=ENV_NAME>', 'assignment from environment (repeatable)', collect, []).option('--set-file <key=PATH>', 'assignment from UTF8 file (repeatable)', collect, []).option('--unset <key>', 'remove optional field (repeatable)', collect, []).option('--apply').action(async (local, command) => {
   const opts = { ...globalOpts(command), ...local }; const client = await clientFor(opts)
-  const result = await editAgentModel(client, { targetId: String(opts.targetId), agentRef: String(opts.agentRef), ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt), set: opts.set as string[], apply: Boolean(opts.apply) })
+  const result = await editAgentModel(client, { targetId: String(opts.targetId), agentRef: String(opts.agentRef), ifMatchUpdatedAt: String(opts.ifMatchUpdatedAt), set: opts.set as string[], setEnv: opts.setEnv as string[], setFile: opts.setFile as string[], unset: opts.unset as string[], apply: Boolean(opts.apply) })
   emitReport(makeReport('edit-agent-model', { ok: true, changed: result.changed, applied: result.applied, data: result, diagnostics: result.warnings }), String(opts.format), [
     `Agent: ${terminalText(result.agentRef)}; changed: ${result.changed}; applied: ${result.applied}`,
     `Updated: ${terminalText(result.updatedDate ?? 'unavailable')}`,

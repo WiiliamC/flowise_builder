@@ -1,3 +1,6 @@
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 vi.mock('../src/config.js', () => ({ loadConfig: vi.fn(async () => ({ baseUrl: 'https://example.com' })), loadCredentialAliases: vi.fn() }))
 const originalArgv = process.argv
@@ -59,4 +62,26 @@ it('does not enable model privacy mode when an existing command uses its name as
   const result = await run(['rename', '--name', 'edit-agent-model'])
   expect(result.errors).toContain("required option '--target-id <id>' not specified")
   expect(JSON.parse(result.output).error.message).toContain('--target-id')
+})
+it('accepts repeated environment, file and unset operations without --set and redacts human output', async () => {
+  const customSource = structuredClone(source)
+  customSource.flowData.nodes[0]!.data.inputs.agentModel = 'chatOpenAICustom'
+  const customCatalog = { name: 'chatOpenAICustom', inputs: [{ name: 'temperature', type: 'number', optional: true }, { name: 'basepath', type: 'string', optional: true }, { name: 'modelName', type: 'string' }, { name: 'streaming', type: 'boolean', optional: true }, { name: 'baseOptions', type: 'json', optional: true }] }
+  const dir = await mkdtemp(join(tmpdir(), 'model-cli-test-'))
+  const path = join(dir, 'options.json')
+  await writeFile(path, '{"headers":{"example":"FILE_PRIVATE_PLACEHOLDER"}}')
+  vi.stubEnv('MODEL_CLI_TEST', 'MODEL_PRIVATE_PLACEHOLDER')
+  vi.stubEnv('MODEL_CLI_BOOL', 'false')
+  try {
+    const result = await run([...edit, '--format', 'human', '--set-env', 'modelName=MODEL_CLI_TEST', '--set-env', 'streaming=MODEL_CLI_BOOL', '--set-file', `baseOptions=${path}`, '--unset', 'temperature', '--unset', 'basepath'], [customSource, customCatalog])
+    expect(result.output).toContain('changed: true; applied: false')
+    expect(result.output).toContain('redacted')
+    expect(result.output + result.errors).not.toMatch(/PRIVATE_PLACEHOLDER|MODEL_CLI_|example.com|YOUR_API_KEY|model-cli-test-/)
+    expect(result.fetch).toHaveBeenCalledTimes(2)
+  } finally { vi.unstubAllEnvs(); await rm(dir, { recursive: true, force: true }) }
+})
+
+it('shows field names, aliases and optional metadata in human inspection', async () => {
+  const result = await run(['inspect-agent-model', ...common, '--format', 'human'])
+  expect(result.output).toContain('field: topP; aliases: top-p, topP; optional: false')
 })

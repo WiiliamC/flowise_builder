@@ -123,9 +123,9 @@ flowise-agentflow inspect-agent-model --target-id ID --agent-ref n2 --format jso
 flowise-agentflow edit-agent-model --target-id ID --agent-ref n2 --if-match-updated-at DATE --set reasoning.enabled=true --set reasoning.effort=high --format json
 ```
 
-Review the preview, then repeat with `--apply` when authorized. Both preview and apply require an exact `--if-match-updated-at` match, including no-ops. No-ops never PUT. These commands read the live target and model catalog; they do not support offline catalogs, model config files, unset/reset, arbitrary paths, batches, or force.
+Review the preview, then repeat with `--apply` when authorized. Both preview and apply require an exact `--if-match-updated-at` match, including no-ops. No-ops never PUT. These commands read the live target and model catalog; they do not support offline catalogs, whole model config files, arbitrary configuration paths, batches, or force.
 
-V1 supports only an existing `agentAgentflow` with an object `agentModelConfig` and the `chatOpenAI` component. The fixed aliases below are further restricted by live catalog field types, options, bounds, and visibility. Missing or incompatible catalog fields cannot be edited.
+These commands support an existing `agentAgentflow` with an object `agentModelConfig` and either `chatOpenAI` or `chatOpenAICustom`. For `chatOpenAI`, the fixed aliases below are further restricted by live catalog field types, options, bounds, and visibility. Missing or incompatible catalog fields cannot be edited.
 
 | Alias | Stored field | Accepted value |
 | --- | --- | --- |
@@ -135,7 +135,15 @@ V1 supports only an existing `agentAgentflow` with an object `agentModelConfig` 
 | `max-output-tokens` | `maxTokens` | Positive safe integer |
 | `top-p` | `topP` | Finite number from 0 through 1 |
 
-Assignments are repeatable and must use distinct aliases. Values are strict scalar literals. Setting effort requires reasoning to be explicitly true in the combined configuration; no dependent field is changed implicitly. Disabling reasoning retains any stored effort. Unrelated historical values, including numeric strings, are preserved. Inspection distinguishes stored, absent, and invalid values from catalog defaults; defaults are never silently materialized. Invalid stored values are marked without echoing their contents. Arbitrary model names, endpoints, headers, credentials, prompts, tools, and graph details are omitted from these reports and cannot be edited through these commands.
+For `chatOpenAICustom`, all non-credential form fields are supported: required nonblank `modelName`; optional `temperature`, `streaming`, `reasoningEffort`, `maxTokens`, `topP`, `frequencyPenalty`, `presencePenalty`, `timeout`, `basepath`, and `baseOptions`. Numbers must be finite and satisfy live catalog bounds; ordinary OpenAI ranges and integer restrictions do not apply. Custom effort accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`, intersected with live options, without a reasoning toggle. `reasoning.enabled` is unavailable for Custom. The `cache` connection anchor and credentials are excluded.
+
+Use native field names or the aliases above. Supply at least one repeatable operation: `--set key=value`, `--set-env key=ENV_NAME`, `--set-file key=PATH`, or `--unset key`. Environment and UTF8 file contents use the same strict parsing as literal values; source names, paths, and contents are never echoed in errors. A field can appear only once across all operations, including aliases. Unset removes an optional stored field; it never stores a default, and required `modelName` cannot be removed. `baseOptions` accepts a JSON object only and replaces the whole object, stored as serialized JSON text as in the Flowise form.
+
+```sh
+flowise-agentflow edit-agent-model --target-id ID --agent-ref n2 --if-match-updated-at DATE --set-env modelName=MODEL_NAME --set-file baseOptions=/path/to/private-options.json --unset timeout --format json
+```
+
+For ordinary `chatOpenAI`, setting effort requires reasoning explicitly true in the combined configuration; disabling reasoning retains stored effort. Unrelated historical values, including numeric strings, are preserved. Inspection includes each field, accepted aliases, optional status, stored state, and catalog defaults; defaults are never silently materialized. All free text and JSON values are redacted in inspection and change reports, including defaults. Invalid values are marked without echoing their contents. Credentials, prompts, tools, and graph details cannot be edited through these commands.
 
 Schema-valid edits carry `MODEL_COMPATIBILITY_UNVERIFIED`, including for custom endpoints. The CLI makes no model calls and does not establish whether the runtime model supports the requested values. This warning does not block applying an otherwise valid edit or require an additional confirmation.
 

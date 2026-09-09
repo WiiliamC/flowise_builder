@@ -17,9 +17,9 @@
 - `REMOTE_CHANGED`: re-fetch and review the intended change. Rename checks any supplied timestamp exactly (a missing remote timestamp fails) and checks type/name/timestamp again before PUT; it has no `--force` option. For full update, diff again and use `--force` only after explicit authorization.
 - `REMOTE_PERSISTENCE_MISMATCH`: readback did not match the requested change. For rename, inspect the target ID, type, and name before deciding how to proceed; never automatically repeat the write.
 - `REMOTE_WRITE_UNCERTAIN`: inspect by name/time before retrying; never automatically repeat the write.
-- `AGENT_MODEL_UNSUPPORTED`: model editing V1 supports only `chatOpenAI` on an existing agent; do not rebuild its configuration.
+- `AGENT_MODEL_UNSUPPORTED`: model editing supports `chatOpenAI` and `chatOpenAICustom` on an existing agent; do not rebuild its configuration.
 - `AGENT_MODEL_CONFIG_INVALID`: the stored configuration is not an object; inspect through an authorized administrative workflow rather than replacing it implicitly.
-- `AGENT_MODEL_PARAM_INVALID`: use a distinct allowed alias with a strict scalar value within the currently inspected catalog limits.
-- `AGENT_MODEL_DEPENDENCY_INVALID`: review the combined requested values and live visibility conditions; effort requires reasoning explicitly enabled.
+- `AGENT_MODEL_PARAM_INVALID`: use a distinct allowed field or alias with a value matching its inspected type and limits; `baseOptions` requires a JSON object, and only optional fields can be unset. Check that any environment or UTF8 file source is readable.
+- `AGENT_MODEL_DEPENDENCY_INVALID`: review the combined requested values and live visibility conditions; ordinary `chatOpenAI` effort requires reasoning explicitly enabled, while `chatOpenAICustom` has no reasoning toggle.
 - `AGENT_MODEL_CATALOG_INVALID`: the live model schema could not be read or is malformed; do not use a guessed or offline schema.
 - `MODEL_COMPATIBILITY_UNVERIFIED`: informational compatibility limit reported as a warning; schema-valid edits remain allowed without model probes or extra confirmation.
